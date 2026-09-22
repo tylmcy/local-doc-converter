@@ -1,0 +1,21 @@
+{
+  "source_file": "中文结构示例.txt",
+  "target_file": "中文结构示例.docx",
+  "source_format": "txt",
+  "target_format": "docx",
+  "success": true,
+  "skipped": false,
+  "duration_seconds": 0.142,
+  "detected_encoding": "utf-8",
+  "stats": {
+    "headings": 4,
+    "lists": 0,
+    "tables": 1,
+    "code_blocks": 1,
+    "links": 0,
+    "images": 0
+  },
+  "warnings": [],
+  "possible_losses": [],
+  "error": null
+}

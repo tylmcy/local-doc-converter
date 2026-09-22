@@ -1,0 +1,23 @@
+{
+  "source_file": "技术说明.md",
+  "target_file": "技术说明.docx",
+  "source_format": "markdown",
+  "target_format": "docx",
+  "success": true,
+  "skipped": false,
+  "duration_seconds": 0.066,
+  "detected_encoding": null,
+  "stats": {
+    "headings": 3,
+    "lists": 1,
+    "tables": 1,
+    "code_blocks": 1,
+    "links": 1,
+    "images": 0
+  },
+  "warnings": [],
+  "possible_losses": [
+    "部分 Markdown 扩展语法和 HTML/CSS 样式可能被简化。"
+  ],
+  "error": null
+}

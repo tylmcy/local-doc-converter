@@ -1,0 +1,24 @@
+{
+  "source_file": "演示文档.docx",
+  "target_file": "演示文档.txt",
+  "source_format": "docx",
+  "target_format": "txt",
+  "success": true,
+  "skipped": false,
+  "duration_seconds": 0.066,
+  "detected_encoding": null,
+  "stats": {
+    "headings": 3,
+    "lists": 1,
+    "tables": 1,
+    "code_blocks": 1,
+    "links": 1,
+    "images": 0
+  },
+  "warnings": [],
+  "possible_losses": [
+    "TXT 不保留字体、颜色、精确列表样式、表格边框和图片本体。",
+    "页眉页脚、批注、修订记录、文本框、宏、SmartArt 和精确分页可能丢失。"
+  ],
+  "error": null
+}

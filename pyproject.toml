@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-doc-converter"
+version = "1.0.0"
+description = "本地离线 TXT、Markdown、DOCX 批量互转工具"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "charset-normalizer>=3.4,<4",
+  "python-docx>=1.1,<2",
+  "streamlit>=1.40,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<9"]
+
+[project.scripts]
+local-doc-converter = "local_doc_converter.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]

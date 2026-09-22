@@ -1,0 +1,11 @@
+代码示例
+
+下面是一个缩进代码块：
+
+    items = ["TXT", "Markdown", "DOCX"]
+    for item in items:
+        print(item)
+
+- 保留段落
+- 识别列表
+- 统计代码块
