@@ -50,3 +50,24 @@ def test_same_format_is_skipped_not_failed(tmp_path: Path, monkeypatch: pytest.M
     assert result.skipped_count == 1
     assert result.failed_count == 0
     assert result.results[0].report.error is None
+
+
+def test_unsafe_docx_does_not_stop_other_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+    processor = BatchProcessor(DocumentConverter(pandoc=FakePandoc()))
+
+    result = processor.process_uploads(
+        [
+            UploadedDocument("异常.docx", b"not a docx zip"),
+            UploadedDocument("正常.txt", "第一章 正常内容".encode()),
+        ],
+        "markdown",
+        fake_home / "output",
+    )
+
+    assert result.successful_count == 1
+    assert result.failed_count == 1
+    assert "不是有效的 DOCX ZIP" in (result.results[0].report.error or "")
+    assert result.results[1].report.success

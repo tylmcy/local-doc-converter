@@ -43,7 +43,7 @@ with title_col:
     st.caption("TXT、Markdown 与 DOCX 批量互转 · 文件仅在本机处理 · 不调用 AI 或在线服务")
 with version_col:
     st.markdown("##### 稳定版本")
-    st.code("v1.0.0", language=None)
+    st.code("v1.0.1", language=None)
 
 pandoc = PandocRunner()
 if pandoc.available:
@@ -236,4 +236,4 @@ if batch_result:
                     )
 
 st.divider()
-st.caption("Local Document Converter v1.0.0 · 本地离线运行 · 当前支持 TXT / Markdown / DOCX")
+st.caption("Local Document Converter v1.0.1 · 本地离线运行 · 当前支持 TXT / Markdown / DOCX")

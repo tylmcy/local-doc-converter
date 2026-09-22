@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-doc-converter"
-version = "1.0.0"
+version = "1.0.1"
 description = "本地离线 TXT、Markdown、DOCX 批量互转工具"
 readme = "README.md"
 requires-python = ">=3.12"

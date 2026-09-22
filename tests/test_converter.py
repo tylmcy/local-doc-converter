@@ -43,3 +43,18 @@ def test_txt_to_markdown_report_and_no_overwrite(tmp_path: Path, monkeypatch: py
     assert second.output_path and second.output_path != first.output_path
     assert second.output_path.name == "input_2.md"
     assert source.read_text(encoding="utf-8").startswith("第一章")
+
+
+def test_unsafe_docx_fails_before_pandoc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+    source = fake_home / "unsafe.docx"
+    source.write_text("not a docx zip", encoding="utf-8")
+
+    result = DocumentConverter(pandoc=FakePandoc()).convert(source, "markdown", fake_home / "output")
+
+    assert not result.report.success
+    assert result.output_path is None
+    assert result.report_path is not None
+    assert "不是有效的 DOCX ZIP" in (result.report.error or "")

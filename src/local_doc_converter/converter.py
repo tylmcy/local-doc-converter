@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .ast_tools import collect_stats, inspect_and_secure_images, validate_ast
 from .config import TARGET_EXTENSIONS
+from .docx_safety import inspect_docx
 from .docx_style import apply_basic_docx_styles
 from .encoding import decode_text
 from .errors import ConverterError, ValidationError
@@ -63,6 +64,9 @@ class DocumentConverter:
             report.source_format = source_format
             report.skipped = source_format == target_format
             validate_target(source_format, target_format)
+            if source_format == "docx":
+                inspection = inspect_docx(source_path)
+                report.warnings.extend(inspection.warnings)
             self.pandoc.require()
 
             output_name = f"{source_path.stem}{TARGET_EXTENSIONS[target_format]}"
