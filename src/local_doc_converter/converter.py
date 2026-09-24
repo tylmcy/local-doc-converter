@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 import time
@@ -17,6 +18,7 @@ from .errors import ConverterError, ValidationError
 from .models import ConversionReport, ConversionResult
 from .output_cleanup import normalize_markdown
 from .pandoc import PandocRunner
+from .pdf.pipeline import PdfToTextConverter
 from .security import ensure_output_dir, source_format_for, unique_path, validate_file_size, validate_target
 from .text_parser import parse_txt_structure
 
@@ -31,12 +33,49 @@ def _possible_losses(source_format: str, target_format: str) -> list[str]:
         losses.append("复杂表格、浮动图片位置和 Word 专有样式可能被简化。")
     if source_format == "markdown" and target_format == "docx":
         losses.append("部分 Markdown 扩展语法和 HTML/CSS 样式可能被简化。")
+    if source_format == "pdf":
+        losses.extend(
+            [
+                "TXT 无法保留 PDF 的字体、坐标、分页、图片和精确版式。",
+                "三栏以上或不规则分栏、公式和脚注的阅读顺序可能被简化。",
+                "跨页、嵌套或无明确边界的表格可能降级为普通文本。",
+                "OCR 页可能出现漏字、错字、空格变化或段落判断误差。",
+            ]
+        )
     return losses
 
 
+def _publish_bytes_without_overwrite(directory: Path, name: str, data: bytes) -> Path:
+    """先在同目录写完，再以独占硬链接发布，避免半成品或覆盖旧结果。"""
+    with tempfile.NamedTemporaryFile(prefix=".local_doc_stage_", dir=directory, delete=False) as stream:
+        staged = Path(stream.name)
+        try:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        except BaseException:
+            staged.unlink(missing_ok=True)
+            raise
+    try:
+        candidate = unique_path(directory, name)
+        while True:
+            try:
+                os.link(staged, candidate)
+                return candidate
+            except FileExistsError:
+                candidate = unique_path(directory, name)
+    finally:
+        staged.unlink(missing_ok=True)
+
+
 class DocumentConverter:
-    def __init__(self, pandoc: PandocRunner | None = None) -> None:
+    def __init__(
+        self,
+        pandoc: PandocRunner | None = None,
+        pdf_converter: PdfToTextConverter | None = None,
+    ) -> None:
         self.pandoc = pandoc or PandocRunner()
+        self.pdf_converter = pdf_converter or PdfToTextConverter()
 
     def convert(self, source_path: Path, target_format: str, output_dir: Path | str) -> ConversionResult:
         """转换一个文件；预期错误会进入报告，不让批次中的其他文件中断。"""
@@ -47,6 +86,7 @@ class DocumentConverter:
         output_path: Path | None = None
         report_path: Path | None = None
         copied_assets: list[Path] = []
+        created_output = False
         source_format = "unknown"
         report = ConversionReport(
             source_file=source_name,
@@ -67,75 +107,95 @@ class DocumentConverter:
             if source_format == "docx":
                 inspection = inspect_docx(source_path)
                 report.warnings.extend(inspection.warnings)
-            self.pandoc.require()
 
             output_name = f"{source_path.stem}{TARGET_EXTENSIONS[target_format]}"
             output_path = unique_path(output_directory, output_name)
             report.target_file = output_path.name
 
-            with tempfile.TemporaryDirectory(prefix="local_doc_convert_") as temporary:
-                work_dir = Path(temporary)
-                ast_path = work_dir / "document.json"
-                input_for_pandoc = source_path
-                extract_media_name: str | None = None
-                base_dir = source_path.parent
+            if source_format == "pdf":
+                pdf_result = self.pdf_converter.convert(source_path)
+                output_path = _publish_bytes_without_overwrite(
+                    output_directory, output_name, pdf_result.text.encode("utf-8")
+                )
+                created_output = True
+                report.target_file = output_path.name
+                report.detected_encoding = "utf-8"
+                report.stats.tables = pdf_result.table_count
+                report.stats.images = pdf_result.image_count
+                report.warnings.extend(pdf_result.warnings)
+                report.details = pdf_result.report_details()
+                report.success = True
+                report.possible_losses = _possible_losses(source_format, target_format)
+            else:
+                self.pandoc.require()
 
-                if source_format == "txt":
-                    decoded = decode_text(source_path.read_bytes())
-                    report.detected_encoding = decoded.encoding
-                    parsed = parse_txt_structure(decoded.text)
-                    report.warnings.extend(parsed.warnings)
-                    input_for_pandoc = work_dir / "normalized.md"
-                    input_for_pandoc.write_text(parsed.markdown, encoding="utf-8")
+                with tempfile.TemporaryDirectory(prefix="local_doc_convert_") as temporary:
+                    work_dir = Path(temporary)
+                    ast_path = work_dir / "document.json"
+                    input_for_pandoc = source_path
+                    extract_media_name: str | None = None
                     base_dir = source_path.parent
 
-                if source_format == "docx" and target_format == "markdown":
-                    extract_media_name = f"{output_path.stem}_assets"
-                    suffix = 2
-                    while (output_directory / extract_media_name).exists():
-                        extract_media_name = f"{output_path.stem}_assets_{suffix}"
-                        suffix += 1
-                    base_dir = work_dir
+                    if source_format == "txt":
+                        decoded = decode_text(source_path.read_bytes())
+                        report.detected_encoding = decoded.encoding
+                        parsed = parse_txt_structure(decoded.text)
+                        report.warnings.extend(parsed.warnings)
+                        input_for_pandoc = work_dir / "normalized.md"
+                        input_for_pandoc.write_text(parsed.markdown, encoding="utf-8")
+                        base_dir = source_path.parent
 
-                document = self.pandoc.read_to_ast(
-                    input_for_pandoc,
-                    source_format if source_format != "txt" else "txt",
-                    ast_path,
-                    cwd=work_dir,
-                    extract_media=extract_media_name,
-                )
-                document = validate_ast(document)
-                report.stats = collect_stats(document)
-                report.warnings.extend(inspect_and_secure_images(document, base_dir, target_format))
-                ast_path.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
+                    if source_format == "docx" and target_format == "markdown":
+                        extract_media_name = f"{output_path.stem}_assets"
+                        suffix = 2
+                        while (output_directory / extract_media_name).exists():
+                            extract_media_name = f"{output_path.stem}_assets_{suffix}"
+                            suffix += 1
+                        base_dir = work_dir
 
-                staged_output = work_dir / output_path.name
-                resource_paths = [base_dir]
-                self.pandoc.write_from_ast(
-                    ast_path,
-                    target_format,
-                    staged_output,
-                    cwd=work_dir,
-                    resource_paths=resource_paths,
-                )
-                if target_format == "markdown":
-                    normalize_markdown(staged_output)
-                if target_format == "docx":
-                    try:
-                        apply_basic_docx_styles(staged_output)
-                    except Exception as exc:  # 样式补充失败不应丢掉已经成功的转换结果。
-                        report.warnings.append(f"DOCX 已生成，但基础中文样式补充失败：{exc}")
+                    document = self.pandoc.read_to_ast(
+                        input_for_pandoc,
+                        source_format if source_format != "txt" else "txt",
+                        ast_path,
+                        cwd=work_dir,
+                        extract_media=extract_media_name,
+                    )
+                    document = validate_ast(document)
+                    report.stats = collect_stats(document)
+                    report.warnings.extend(inspect_and_secure_images(document, base_dir, target_format))
+                    ast_path.write_text(json.dumps(document, ensure_ascii=False), encoding="utf-8")
 
-                shutil.copy2(staged_output, output_path)
-                if extract_media_name:
-                    staged_assets = work_dir / extract_media_name
-                    if staged_assets.exists():
-                        final_assets = output_directory / extract_media_name
-                        shutil.copytree(staged_assets, final_assets)
-                        copied_assets.append(final_assets)
+                    staged_output = work_dir / output_path.name
+                    resource_paths = [base_dir]
+                    self.pandoc.write_from_ast(
+                        ast_path,
+                        target_format,
+                        staged_output,
+                        cwd=work_dir,
+                        resource_paths=resource_paths,
+                    )
+                    if target_format == "markdown":
+                        normalize_markdown(staged_output)
+                    if target_format == "docx":
+                        try:
+                            apply_basic_docx_styles(staged_output)
+                        except Exception as exc:  # 样式补充失败不应丢掉已经成功的转换结果。
+                            report.warnings.append(f"DOCX 已生成，但基础中文样式补充失败：{exc}")
 
-            report.success = True
-            report.possible_losses = _possible_losses(source_format, target_format)
+                    output_path = _publish_bytes_without_overwrite(
+                        output_directory, output_name, staged_output.read_bytes()
+                    )
+                    created_output = True
+                    report.target_file = output_path.name
+                    if extract_media_name:
+                        staged_assets = work_dir / extract_media_name
+                        if staged_assets.exists():
+                            final_assets = output_directory / extract_media_name
+                            shutil.copytree(staged_assets, final_assets)
+                            copied_assets.append(final_assets)
+
+                report.success = True
+                report.possible_losses = _possible_losses(source_format, target_format)
         except (ConverterError, OSError, ValueError) as exc:
             if report.skipped:
                 report.warnings.append("源格式与目标格式相同，已跳过转换。")
@@ -143,7 +203,7 @@ class DocumentConverter:
             else:
                 report.error = str(exc)
             report.success = False
-            if output_path and output_path.exists():
+            if created_output and output_path and output_path.exists():
                 output_path.unlink(missing_ok=True)
             for asset in copied_assets:
                 if asset.exists():
@@ -153,7 +213,7 @@ class DocumentConverter:
         except Exception as exc:  # 不把内部堆栈暴露到网页，但保留可理解的错误类别。
             report.error = f"转换时发生未预期错误：{type(exc).__name__}: {exc}"
             report.success = False
-            if output_path and output_path.exists():
+            if created_output and output_path and output_path.exists():
                 output_path.unlink(missing_ok=True)
             for asset in copied_assets:
                 if asset.exists():
@@ -162,16 +222,30 @@ class DocumentConverter:
             copied_assets = []
         finally:
             report.duration_seconds = round(time.monotonic() - started, 3)
+            if not report.success:
+                # 失败报告不应把预定文件名显示成已交付的结果。
+                report.target_file = ""
             if output_directory is not None:
                 safe_stem = source_path.stem or "conversion"
-                report_path = unique_path(output_directory, f"{safe_stem}_report.json")
                 try:
-                    report_path.write_text(
-                        json.dumps(report.to_dict(), ensure_ascii=False, indent=2),
-                        encoding="utf-8",
+                    report_path = _publish_bytes_without_overwrite(
+                        output_directory,
+                        f"{safe_stem}_report.json",
+                        json.dumps(report.to_dict(), ensure_ascii=False, indent=2).encode("utf-8"),
                     )
-                except OSError:
+                except OSError as exc:
                     report_path = None
+                    if report.success:
+                        report.success = False
+                        report.error = f"报告写入失败，未交付转换结果：{exc}"
+                        report.target_file = ""
+                        if created_output and output_path is not None:
+                            output_path.unlink(missing_ok=True)
+                            output_path = None
+                        for asset in copied_assets:
+                            if asset.exists():
+                                shutil.rmtree(asset)
+                        copied_assets = []
 
         return ConversionResult(
             report=report,

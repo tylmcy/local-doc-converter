@@ -7,10 +7,18 @@ from pathlib import Path
 import streamlit as st
 
 from local_doc_converter.batch import BatchProcessor
-from local_doc_converter.config import DEFAULT_OUTPUT_DIR, SUPPORTED_EXTENSIONS, TARGET_LABELS
+from local_doc_converter.converter import DocumentConverter
+from local_doc_converter.config import (
+    DEFAULT_OUTPUT_DIR,
+    FORMAT_LABELS,
+    SUPPORTED_EXTENSIONS,
+    TARGET_LABELS,
+)
 from local_doc_converter.errors import ConverterError
 from local_doc_converter.models import UploadedDocument
 from local_doc_converter.pandoc import PandocRunner
+from local_doc_converter.pdf.ocr import inspect_ocr_environment
+from local_doc_converter.pdf.pipeline import PdfToTextConverter
 from local_doc_converter.platform_tools import open_directory
 from local_doc_converter.security import ensure_output_dir
 
@@ -40,10 +48,10 @@ st.session_state.setdefault("output_dir", str(DEFAULT_OUTPUT_DIR))
 title_col, version_col = st.columns([5, 1])
 with title_col:
     st.title("📄 本地离线文档互转")
-    st.caption("TXT、Markdown 与 DOCX 批量互转 · 文件仅在本机处理 · 不调用 AI 或在线服务")
+    st.caption("TXT、Markdown、DOCX 互转 + PDF 转 TXT · 文件仅在本机处理")
 with version_col:
     st.markdown("##### 稳定版本")
-    st.code("v1.0.1", language=None)
+    st.code("v2.0.0", language=None)
 
 pandoc = PandocRunner()
 if pandoc.available:
@@ -52,17 +60,31 @@ if pandoc.available:
     except ConverterError as exc:
         st.error(str(exc))
 else:
-    st.error("未找到 Pandoc。请先在 macOS 终端运行 `brew install pandoc`，然后重新启动本应用。")
+    st.warning(
+        "未找到 Pandoc：PDF → TXT 仍可使用；其他格式请先在 macOS 终端运行 "
+        "`brew install pandoc`。"
+    )
+
+ocr_status = inspect_ocr_environment()
+if ocr_status.ready:
+    st.success(ocr_status.message, icon="🔎")
+else:
+    st.info(
+        "PDF 原生文字提取可用；扫描页 OCR 尚未就绪。"
+        f"{ocr_status.message} 详见 README 的 PaddleOCR 可选安装说明。"
+    )
 
 with st.expander("使用说明与隐私说明"):
     st.markdown(
         """
-1. 上传一个或多个 TXT、Markdown 或 DOCX 文档。
+1. 上传一个或多个 TXT、Markdown、DOCX 或 PDF 文档。
 2. 为整个批次选择目标格式，并确认本地输出目录。
 3. 转换完成后可下载单个文件或包含报告的 ZIP。
 
 上传内容只会进入本机临时目录，任务结束后立即清理。程序不会上传文件、调用模型 API，
-也不会主动下载 Markdown 中的远程图片。同名结果会自动添加数字后缀，不覆盖原文件。
+也不会主动下载 Markdown 图片或 OCR 模型。PDF 当前仅支持转 TXT；
+扫描 PDF 需要预先安装本地 PaddleOCR 并准备 PP-OCRv5 模型。
+同名结果会自动添加数字后缀，不覆盖原文件。
         """
     )
 
@@ -71,7 +93,7 @@ upload_col, target_col = st.columns([3, 1])
 with upload_col:
     uploaded_files = st.file_uploader(
         "拖入或选择一个或多个文档",
-        type=["txt", "md", "markdown", "docx"],
+        type=["txt", "md", "markdown", "docx", "pdf"],
         accept_multiple_files=True,
         help="单文件最大 50 MB，单批最多 100 个文件、总计 200 MB。",
         key=f"uploads_{st.session_state['upload_generation']}",
@@ -95,7 +117,7 @@ if uploaded_files:
         preview_rows.append(
             {
                 "文件名": uploaded.name,
-                "源格式": TARGET_LABELS.get(source_format, source_format),
+                "源格式": FORMAT_LABELS.get(source_format, source_format),
                 "大小": _format_size(uploaded.size),
                 "处理状态": "源格式与目标格式相同" if same_format else "等待转换",
             }
@@ -106,6 +128,20 @@ if uploaded_files:
             f"有 {len(same_format_files)} 个文件已经是 {TARGET_LABELS[target_format]}，"
             "它们会生成说明报告，不会重复转换：" + "、".join(same_format_files)
         )
+
+pdf_wrong_target = bool(
+    uploaded_files
+    and target_format != "txt"
+    and any(Path(uploaded.name).suffix.lower() == ".pdf" for uploaded in uploaded_files)
+)
+if pdf_wrong_target:
+    st.error("PDF 当前仅支持转为 TXT，请修改目标格式。")
+
+old_print_profile = st.checkbox(
+    "旧印刷体增强（实验）：300 DPI + 轻度去噪",
+    value=False,
+    help="只影响需要 OCR 的 PDF 页面。默认模式保持 200 DPI；增强模式不保证每个字都更准，可对照两次结果。",
+)
 
 st.subheader("2. 确认本地输出目录")
 directory_col, reset_col = st.columns([5, 1])
@@ -121,7 +157,19 @@ with reset_col:
 st.caption("已有同名文件不会被覆盖，程序会自动添加 `_2`、`_3` 等后缀。")
 
 st.subheader("3. 开始转换")
-start_disabled = not uploaded_files or not pandoc.available
+requires_pandoc = bool(
+    uploaded_files
+    and any(
+        SUPPORTED_EXTENSIONS.get(Path(uploaded.name).suffix.lower())
+        not in {"pdf", target_format}
+        for uploaded in uploaded_files
+    )
+)
+start_disabled = (
+    not uploaded_files
+    or pdf_wrong_target
+    or (requires_pandoc and not pandoc.available)
+)
 if st.button("开始转换", type="primary", disabled=start_disabled, use_container_width=True):
     documents = [UploadedDocument(name=file.name, data=file.getvalue()) for file in uploaded_files]
     try:
@@ -132,7 +180,12 @@ if st.button("开始转换", type="primary", disabled=start_disabled, use_contai
         def update_progress(completed: int, total: int, filename: str) -> None:
             progress.progress(completed / total, text=f"正在处理 {completed}/{total}：{filename}")
 
-        batch_result = BatchProcessor().process_uploads(
+        converter = DocumentConverter(
+            pdf_converter=PdfToTextConverter(
+                ocr_profile="old_print" if old_print_profile else "standard"
+            )
+        )
+        batch_result = BatchProcessor(converter).process_uploads(
             documents,
             target_format,
             resolved_output,
@@ -225,6 +278,27 @@ if batch_result:
                     st.info("\n".join(f"• {item}" for item in report.possible_losses))
                 if report.error:
                     st.error(report.error)
+                if report.details.get("page_count") is not None:
+                    st.caption(
+                        f"PDF 页数：{report.details['page_count']} · "
+                        f"原生提取页：{len(report.details.get('native_page_numbers', []))} · "
+                        f"OCR 页：{len(report.details.get('ocr_page_numbers', []))} · "
+                        f"空白页：{len(report.details.get('skipped_empty_page_numbers', []))} · "
+                        f"隔离解析："
+                        f"{'是' if report.details.get('parser_isolated') else '否'} · "
+                        f"解析耗时：{report.details.get('parse_duration_seconds', 0):.3f} 秒"
+                    )
+                    if report.details.get("ocr_page_numbers"):
+                        st.caption(
+                            f"渲染/OCR 隔离："
+                            f"{'是' if report.details.get('ocr_isolated') else '否'} · "
+                            f"OCR 子进程耗时："
+                            f"{report.details.get('ocr_duration_seconds', 0):.3f} 秒 · "
+                            f"启动超时："
+                            f"{report.details.get('ocr_startup_timeout_seconds', 0):g} 秒 · "
+                            f"单页超时："
+                            f"{report.details.get('ocr_page_timeout_seconds', 0):g} 秒"
+                        )
                 if result.asset_paths:
                     st.caption("该 Markdown 包含提取的图片资源，移动文件时请同时使用 ZIP 中的资源目录。")
                 if result.output_path and result.output_path.exists():
@@ -236,4 +310,7 @@ if batch_result:
                     )
 
 st.divider()
-st.caption("Local Document Converter v1.0.1 · 本地离线运行 · 当前支持 TXT / Markdown / DOCX")
+st.caption(
+    "Local Document Converter v2.0.0 · 本地离线运行 · "
+    "支持 TXT / Markdown / DOCX / PDF → TXT"
+)

@@ -19,3 +19,11 @@ class PandocExecutionError(ConverterError):
 
 class EncodingDetectionError(ConverterError):
     """文本编码无法可靠解码。"""
+
+
+class OcrUnavailableError(ConverterError):
+    """PDF 需要 OCR，但本地 PaddleOCR 环境或模型未就绪。"""
+
+
+class PdfExtractionError(ConverterError):
+    """PDF 文字提取或页面渲染失败。"""

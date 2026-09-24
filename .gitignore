@@ -10,5 +10,13 @@ build/
 .coverage
 htmlcov/
 *.log
+tmp/
 .idea/
 .vscode/
+
+# 真实 PDF 质量集：二进制原文、转换结果和渲染图仅保留在本机。
+quality/pdf_corpus/downloads/
+quality/pdf_corpus/results/
+quality/pdf_corpus/renders/
+quality/pdf_corpus/local-manifest.json
+quality/pdf_corpus/local-oldprint-benchmark/

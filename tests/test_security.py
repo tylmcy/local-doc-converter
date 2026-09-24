@@ -17,6 +17,11 @@ def test_unique_path_does_not_overwrite(tmp_path: Path):
     assert unique_path(tmp_path, "result.md").name == "result_2.md"
 
 
+def test_unique_path_skips_dangling_symlink(tmp_path: Path):
+    (tmp_path / "result.md").symlink_to(tmp_path / "missing.md")
+    assert unique_path(tmp_path, "result.md").name == "result_2.md"
+
+
 def test_output_dir_must_be_below_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     fake_home = tmp_path / "home"
     fake_home.mkdir()

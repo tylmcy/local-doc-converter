@@ -12,4 +12,5 @@ def test_streamlit_app_renders_without_exception():
         "2. 确认本地输出目录",
         "3. 开始转换",
     ]
-    assert any(item.value == "v1.0.1" for item in app.code)
+    assert any(item.value == "v2.0.0" for item in app.code)
+    assert any("旧印刷体增强" in item.label for item in app.checkbox)

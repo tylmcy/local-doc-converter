@@ -11,8 +11,7 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 if ! command -v pandoc >/dev/null 2>&1; then
-  echo "未找到 Pandoc。请先运行：brew install pandoc"
-  exit 1
+  echo "未找到 Pandoc：PDF → TXT 仍可使用；其他格式请先运行：brew install pandoc"
 fi
 
 exec uv run streamlit run app.py --server.address=127.0.0.1

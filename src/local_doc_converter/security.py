@@ -38,6 +38,8 @@ def validate_target(source_format: str, target_format: str) -> None:
         raise ValidationError(f"不支持的目标格式：{target_format}")
     if source_format == target_format:
         raise ValidationError("源格式与目标格式相同，无需转换。")
+    if source_format == "pdf" and target_format != "txt":
+        raise ValidationError("PDF 当前仅支持转换为 TXT。")
 
 
 def validate_file_size(size: int) -> None:
@@ -75,12 +77,13 @@ def ensure_output_dir(raw_path: str | Path) -> Path:
 
 def unique_path(directory: Path, filename: str) -> Path:
     candidate = directory / filename
-    if not candidate.exists():
+    # 悬空符号链接的 exists() 为 False，但文件名仍被占用；否则独占发布会反复撞名。
+    if not candidate.exists() and not candidate.is_symlink():
         return candidate
     stem, suffix = candidate.stem, candidate.suffix
     index = 2
     while True:
         candidate = directory / f"{stem}_{index}{suffix}"
-        if not candidate.exists():
+        if not candidate.exists() and not candidate.is_symlink():
             return candidate
         index += 1

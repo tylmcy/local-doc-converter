@@ -1,0 +1,73 @@
+{
+  "source_file": "scanned-table-150ppi.pdf",
+  "target_file": "scanned-table-150ppi.txt",
+  "source_format": "pdf",
+  "target_format": "txt",
+  "success": true,
+  "skipped": false,
+  "duration_seconds": 6.598,
+  "detected_encoding": "utf-8",
+  "stats": {
+    "headings": 0,
+    "lists": 0,
+    "tables": 1,
+    "code_blocks": 0,
+    "links": 0,
+    "images": 1
+  },
+  "warnings": [
+    "页面缺少足够文字层，需要离线 OCR。",
+    "第 1 页已按清晰网格线恢复 1 个扫描表格；合并单元格和无框表格仍需人工核对。"
+  ],
+  "possible_losses": [
+    "TXT 不保留字体、颜色、精确列表样式、表格边框和图片本体。",
+    "TXT 无法保留 PDF 的字体、坐标、分页、图片和精确版式。",
+    "三栏以上或不规则分栏、公式和脚注的阅读顺序可能被简化。",
+    "跨页、嵌套或无明确边界的表格可能降级为普通文本。",
+    "OCR 页可能出现漏字、错字、空格变化或段落判断误差。"
+  ],
+  "details": {
+    "pdf_kind": "scanned",
+    "page_count": 1,
+    "text_pages": 0,
+    "scanned_pages": 1,
+    "mixed_pages": 0,
+    "empty_page_count": 0,
+    "native_page_numbers": [],
+    "ocr_page_numbers": [
+      1
+    ],
+    "skipped_empty_page_numbers": [],
+    "double_column_page_numbers": [],
+    "structured_table_count": 1,
+    "complex_table_count": 0,
+    "table_fallback_count": 0,
+    "parser_isolated": true,
+    "parse_duration_seconds": 0.004,
+    "ocr_isolated": true,
+    "ocr_duration_seconds": 6.2,
+    "ocr_startup_timeout_seconds": 30.0,
+    "ocr_page_timeout_seconds": 60.0,
+    "ocr_profile": "standard",
+    "pages": [
+      {
+        "page_number": 1,
+        "source": "ocr",
+        "native_quality_score": 0.35,
+        "ocr_mean_confidence": 0.9963,
+        "column_count": null,
+        "structured_table_count": 1,
+        "complex_table_count": 0,
+        "table_fallback_count": 0,
+        "printed_page_numbers": [],
+        "ocr_recognition_model": "server",
+        "ocr_preprocessing_profile": "standard",
+        "warnings": [
+          "页面缺少足够文字层，需要离线 OCR。",
+          "第 1 页已按清晰网格线恢复 1 个扫描表格；合并单元格和无框表格仍需人工核对。"
+        ]
+      }
+    ]
+  },
+  "error": null
+}
