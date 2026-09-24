@@ -263,6 +263,8 @@ DOCX 是 ZIP 容器。程序会在 Pandoc 读取前进行只读、流式预检�
 - 竖排列序只在多个细长中文块等特征充分时启用；重复页边标题和页码可保守清理，但独有的页边文字、横竖混排和旧式繁体印刷仍可能需要人工整理。
 - PDF 解析与渲染/OCR 都已实现子进程超时隔离，但这不等于完整的操作系统沙箱，也没有为子进程设置绝对内存上限。
 
+发布后质量改进分别跟踪于 [旋转密集表格](https://github.com/tylmcy/local-doc-converter/issues/1)、[跨栏表与图片文字](https://github.com/tylmcy/local-doc-converter/issues/2)、[复杂表单/公式与中英混排](https://github.com/tylmcy/local-doc-converter/issues/3) 和 [倾斜、模糊、真实扫描表格样例](https://github.com/tylmcy/local-doc-converter/issues/4)。私人文档不会直接提交到仓库，只接受公开来源、自制或完成脱敏的最小复现。
+
 ## 自动化测试
 
 运行全部测试：
