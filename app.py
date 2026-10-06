@@ -41,14 +41,14 @@ def _start_new_batch() -> None:
     st.session_state["upload_generation"] = st.session_state.get("upload_generation", 0) + 1
 
 
-st.set_page_config(page_title="本地文档互转", page_icon="📄", layout="wide")
+st.set_page_config(page_title="LocalDoc Forge", page_icon="📄", layout="wide")
 st.session_state.setdefault("upload_generation", 0)
 st.session_state.setdefault("output_dir", str(DEFAULT_OUTPUT_DIR))
 
 title_col, version_col = st.columns([5, 1])
 with title_col:
-    st.title("📄 本地离线文档互转")
-    st.caption("TXT、Markdown、DOCX 互转 + PDF 转 TXT · 文件仅在本机处理")
+    st.title("📄 LocalDoc Forge")
+    st.caption("本地文档工坊 · TXT、Markdown、DOCX 互转 + PDF 转 TXT · 文件仅在本机处理")
 with version_col:
     st.markdown("##### 稳定版本")
     st.code("v2.0.0", language=None)
@@ -311,6 +311,6 @@ if batch_result:
 
 st.divider()
 st.caption(
-    "Local Document Converter v2.0.0 · 本地离线运行 · "
+    "LocalDoc Forge v2.0.0 · 本地离线运行 · "
     "支持 TXT / Markdown / DOCX / PDF → TXT"
 )

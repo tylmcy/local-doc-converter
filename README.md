@@ -1,17 +1,77 @@
-# 本地离线文档互转工具
+<div align="center">
+  <img src="docs/assets/localdoc-forge-hero.svg" alt="LocalDoc Forge — 本地文档工坊" width="100%">
+  <p><strong>离线、可解释、批量的文档转换与 PDF 文本提取</strong></p>
+  <p>
+    <a href="#一分钟上手">快速开始</a> ·
+    <a href="#支持的转换路径">格式矩阵</a> ·
+    <a href="#可复核的质量">质量证据</a> ·
+    <a href="#已知限制">已知限制</a>
+  </p>
+</div>
 
 ![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![Pandoc 3.x](https://img.shields.io/badge/Pandoc-3.x-2D2D2D)
+![Local first](https://img.shields.io/badge/Local--first-offline-0F766E)
+![Version](https://img.shields.io/badge/version-v2.0.0-7C3AED)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 [![Tests](https://github.com/tylmcy/local-doc-converter/actions/workflows/tests.yml/badge.svg)](https://github.com/tylmcy/local-doc-converter/actions/workflows/tests.yml)
 
-一个面向个人使用与作品集展示的本地网页工具，可在 TXT、Markdown 和 DOCX 之间批量转换文档，并支持 PDF → TXT。所有文件都在本机处理，不调用 AI API，不上传云端。OCR 模型只在用户显式执行准备命令时下载，日常转换不依赖在线服务。
+**LocalDoc Forge｜本地文档工坊**是一个在本机网页中运行的文档处理工具：批量互转 TXT、Markdown 与 DOCX，并通过原生文字层 + PaddleOCR PP-OCRv5 将 PDF 提取为 TXT。文件不上传、不调用 AI API，每份输出都带有可阅读的 JSON 转换报告。
 
-## 项目状态
+| 🔒 本地与隐私 | 📦 批量交付 | 🔎 PDF 双路径 | 🧪 可复核 |
+|---|---|---|---|
+| 绑定 `127.0.0.1`，无云端服务 | 多文件转换、单件下载、ZIP 打包 | 原生文字优先，异常页离线 OCR 回退 | 结构统计、警告、格式损失与逐页报告 |
 
-当前稳定版本为 **v2.0.0**。v1 的六条转换路径保持兼容，本版正式加入 PDF → TXT。九份固定真实 PDF 的自动硬性门槛与网页五文件批量交付均已验收；固定五页旧印刷体在冻结人工参考上取得 93.14% 正式字符正确率，达到 V2 的 90% 发布门槛；123 项自动测试和发布前终检已通过。旋转密集表、跨栏密集表、复杂表单/公式和图片内文字仍有明确限制。当前不制作安装包。
+## 真实界面
 
-## 功能
+<div align="center">
+  <img src="docs/assets/localdoc-forge-home.png" alt="LocalDoc Forge 本地网页主界面" width="92%">
+  <p><sub>真实本地运行截图；展示路径已脱敏，样例全部来自本仓库。</sub></p>
+</div>
+
+## 支持的转换路径
+
+| 输入 | TXT | Markdown | DOCX |
+|---|:---:|:---:|:---:|
+| TXT | — | ✅ | ✅ |
+| Markdown | ✅ | — | ✅ |
+| DOCX | ✅ | ✅ | — |
+| PDF | ✅ 原生提取 / OCR | — | — |
+
+PDF → TXT 会先做安全预检和逐页分类；只有扫描页或异常文字层才进入本地 OCR。相同目标格式的文件会跳过并产生说明报告，原文件永不覆盖。
+
+## 一分钟演示
+
+```text
+选择 1–100 个文件 → 选择目标格式 → 确认本地目录
+        → 本地转换 → 查看逐文件报告 → 单件或 ZIP 下载
+```
+
+实际网页验收使用 5 个仓库自制样例：**4 个转换成功、1 个同格式跳过、0 个失败**，并生成批次 ZIP 与报告。
+
+## 可复核的质量
+
+| 检查项 | 当前结果 | 适用边界 |
+|---|---:|---|
+| 自动化测试 | 123 项通过 | 编码、格式、安全、布局、超时与批处理 |
+| 固定真实 PDF 硬性门槛 | 9 / 9 | 按固定来源、SHA-256 与验收阈值复现 |
+| 五页旧印刷体 | 93.14% 字符正确率 | 仅代表该冻结人工参考，不外推为通用 OCR 准确率 |
+| 自制扫描表格 | 39 / 40 单元格命中 | 清晰网格、150/300 PPI 样例 |
+
+评测方法、人工参考与已知布局问题见 [真实 PDF 质量样例集](quality/pdf_corpus/README.md)、[旧印刷体正式评分](docs/validation/2026-09-24-old-print-formal-score.md) 和 [V2 人工收尾记录](docs/validation/2026-09-24-v2-pdf-manual-closeout.md)。
+
+## 一分钟上手
+
+```bash
+brew install pandoc uv
+uv python install 3.12
+uv sync --extra dev
+./scripts/start.sh
+```
+
+浏览器打开 `http://localhost:8501`。只处理文本型 PDF 时不需要 OCR；扫描 PDF 请继续阅读下方的“PaddleOCR 可选安装”。
+
+## 功能全景
 
 - 支持 TXT → Markdown、TXT → DOCX。
 - 支持 Markdown → TXT、Markdown → DOCX。
@@ -323,6 +383,7 @@ app.py                         Streamlit 页面
 src/local_doc_converter/       分层转换核心
 tests/                          自动化测试
 docs/designs/                   分项设计文档
+docs/assets/                    README 横幅与真实界面截图
 examples/input/                 演示输入
 examples/output/                实际转换示例与报告
 scripts/start.sh                macOS 启动脚本
@@ -335,7 +396,7 @@ quality/pdf_corpus/             可复现清单、验收阈值与人工复核结
 设计文档.md                     架构、风险与实施说明
 ```
 
-更详细的模块边界、安全策略和取舍见 [设计文档.md](设计文档.md)；DOCX 预检的阈值、失败行为和测试策略见 [DOCX 安全预检设计文档](docs/designs/2026-09-22-docx-safety-preflight.md)，真实样例集设计见 [PDF 真实质量样例集设计](docs/designs/2026-09-23-pdf-quality-corpus.md)。
+更详细的模块边界、安全策略和取舍见 [设计文档.md](设计文档.md)；DOCX 预检的阈值、失败行为和测试策略见 [DOCX 安全预检设计文档](docs/designs/2026-09-22-docx-safety-preflight.md)，真实样例集设计见 [PDF 真实质量样例集设计](docs/designs/2026-09-23-pdf-quality-corpus.md)，作品集展示取舍见 [LocalDoc Forge 展示改版设计](docs/designs/2026-10-06-portfolio-presentation.md)。
 
 ## 许可证
 
